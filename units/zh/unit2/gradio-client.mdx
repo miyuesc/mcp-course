@@ -1,0 +1,175 @@
+# Gradio 客户端
+
+在上一节中，我们探索了如何使用 Gradio 创建 MCP 服务器并使用 MCP 客户端连接到它。在本节中，我们将探索如何使用 Gradio 作为 MCP 客户端连接到 MCP 服务器。
+
+<Tip>
+
+Gradio 最适合创建 UI 客户端和 MCP 服务器，但也可以将其用作 MCP 客户端并将其作为 UI 公开。
+
+</Tip>
+
+我们将连接到在上一节中创建的 MCP 服务器并使用它来回答问题。
+
+## Gradio 中的 MCP 客户端
+
+### 连接到示例 MCP 服务器
+
+让我们连接到已经在 Hugging Face 上运行的示例 MCP 服务器。我们将使用[这个](https://huggingface.co/spaces/abidlabs/mcp-tools2)作为示例。这是一个包含 MCP 工具集合的空间。
+
+```python
+from smolagents.mcp_client import MCPClient
+
+with MCPClient(
+    {"url": "https://abidlabs-mcp-tools2.hf.space/gradio_api/mcp/sse"}
+) as tools:
+    # 远程服务器的工具可用
+    print("\n".join(f"{t.name}: {t.description}" for t in tools))
+
+```
+
+<details>
+<summary>输出</summary>
+<pre>
+<code>
+prime_factors: Compute the prime factorization of a positive integer.
+generate_cheetah_image: Generate a cheetah image.
+image_orientation: Returns whether image is portrait or landscape.
+sepia: Apply a sepia filter to the input image.
+</code>
+</pre>
+</details>
+
+### 从 Gradio 连接到您的 MCP 服务器
+
+很好，现在您已经连接到示例 MCP 服务器，让我们从 Gradio 连接到您自己的 MCP 服务器。
+
+首先，如果我们还没有安装 `smolagents`、Gradio 和 mcp-client 库，我们需要安装它们：
+
+```bash
+pip install "smolagents[mcp]" "gradio[mcp]" mcp fastmcp
+```
+
+现在，我们可以导入必要的库并创建一个简单的 Gradio 界面，使用 MCP 客户端连接到 MCP 服务器。
+
+```python
+import gradio as gr
+import os
+
+from mcp import StdioServerParameters
+from smolagents import InferenceClientModel, CodeAgent, ToolCollection, MCPClient
+```
+
+接下来，我们将连接到 MCP 服务器并获取可以用来回答问题的工具。
+
+```python
+mcp_client = MCPClient(
+    {"url": "http://localhost:7860/gradio_api/mcp/sse"} # 这是我们在上一节中创建的 MCP 服务器
+)
+tools = mcp_client.get_tools()
+```
+
+现在我们有了工具，我们可以创建一个使用这些工具回答问题的简单代理。我们现在只使用简单的 `InferenceClientModel` 和 `smolagents` 的默认模型。
+
+重要的是要将您的 api_key 传递给 InferenceClientModel。您可以从您的 huggingface 账户访问令牌。[在这里查看。](https://huggingface.co/docs/hub/en/security-tokens)，并使用环境变量 `HF_TOKEN` 设置访问令牌。
+
+```python
+model = InferenceClientModel(token=os.getenv("HF_TOKEN"))
+agent = CodeAgent(tools=[*tools], model=model)
+```
+
+现在，我们可以创建一个使用代理回答问题的简单 Gradio 界面。
+
+```python
+demo = gr.ChatInterface(
+    fn=lambda message, history: str(agent.run(message)),
+    type="messages",
+    examples=["68 的质因数分解"],
+    title="带有 MCP 工具的代理",
+    description="这是一个使用 MCP 工具回答问题的简单代理。"
+)
+
+demo.launch()
+```
+
+就是这样！我们已经创建了一个简单的 Gradio 界面，使用 MCP 客户端连接到 MCP 服务器并回答问题。
+
+<iframe
+	src="https://mcp-course-unit2-gradio-client.hf.space"
+	frameborder="0"
+	width="850"
+	height="450"
+></iframe>
+
+## 完整示例
+
+这是 Gradio 中 MCP 客户端的完整示例：
+
+```python
+import gradio as gr
+import os
+
+from mcp import StdioServerParameters
+from smolagents import InferenceClientModel, CodeAgent, ToolCollection, MCPClient
+
+
+try:
+    mcp_client = MCPClient(
+        {"url": "http://localhost:7860/gradio_api/mcp/sse"} # 这是我们在上一节中创建的 MCP 服务器
+    )
+    tools = mcp_client.get_tools()
+
+    model = InferenceClientModel(token=os.getenv("HUGGINGFACE_API_TOKEN"))
+    agent = CodeAgent(tools=[*tools], model=model)
+
+    demo = gr.ChatInterface(
+        fn=lambda message, history: str(agent.run(message)),
+        type="messages",
+        examples=["68 的质因数分解"],
+        title="带有 MCP 工具的代理",
+        description="这是一个使用 MCP 工具回答问题的简单代理。",
+    )
+
+    demo.launch()
+finally:
+    mcp_client.disconnect()
+```
+
+您会注意到我们在 `finally` 块中关闭了 MCP 客户端。这很重要，因为 MCP 客户端是一个长期存在的对象，需要在程序退出时关闭。
+
+## 部署到 Hugging Face Spaces
+
+要让您的服务器对其他人可用，您可以将其部署到 Hugging Face Spaces，就像我们在上一节中所做的那样。
+要将您的 Gradio MCP 客户端部署到 Hugging Face Spaces：
+
+1. 在 Hugging Face 上创建新 Space：
+   - 转到 huggingface.co/spaces
+   - 点击"创建新 Space"
+   - 选择"Gradio"作为 SDK
+   - 命名您的空间（例如，"mcp-client"）
+
+2. 在代码中更新 MCP 服务器 URL：
+
+```python
+mcp_client = MCPClient(
+    {"url": "http://localhost:7860/gradio_api/mcp/sse"} # 这是我们在上一节中创建的 MCP 服务器
+)
+```
+
+3. 创建 `requirements.txt` 文件：
+```txt
+gradio[mcp]
+smolagents[mcp]
+```
+
+4. 将您的代码推送到 Space：
+```bash
+git init
+git add server.py requirements.txt
+git commit -m "Initial commit"
+git remote add origin https://huggingface.co/spaces/YOUR_USERNAME/mcp-client
+git push -u origin main
+```
+
+## 结论
+
+在本节中，我们探索了如何使用 Gradio 作为 MCP 客户端连接到 MCP 服务器。我们还看到了如何在 Hugging Face Spaces 中部署 MCP 客户端。

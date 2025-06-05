@@ -1,0 +1,135 @@
+# 客户端
+
+在本节中，我们将创建可以使用不同编程语言与我们的 MCP 服务器交互的客户端。我们将实现一个使用 HuggingFace.js 的 JavaScript 客户端和一个使用 smolagents 的 Python 客户端。
+
+## 配置 MCP 客户端
+
+有效部署 MCP 服务器和客户端需要适当的配置。MCP 规范仍在发展中，因此配置方法可能会发生变化。我们将专注于当前的配置最佳实践。
+
+### MCP 配置文件
+
+MCP 主机使用配置文件来管理服务器连接。这些文件定义了哪些服务器可用以及如何连接到它们。
+
+配置文件非常简单，易于理解，并且在主要 MCP 主机之间保持一致。
+
+#### `mcp.json` 结构
+
+MCP 的标准配置文件名为 `mcp.json`。这是基本结构：
+
+```json
+{
+  "servers": [
+    {
+      "name": "MCP Server",
+      "transport": {
+        "type": "sse",
+        "url": "http://localhost:7860/gradio_api/mcp/sse"
+      }
+    }
+  ]
+}
+```
+
+在这个示例中，我们有一个配置为使用 SSE 传输的单个服务器，连接到在端口 7860 上运行的本地 Gradio 服务器。
+
+<Tip>
+
+我们通过 SSE 传输连接到 Gradio 应用，因为我们假设 gradio 应用在远程服务器上运行。但是，如果您想连接到本地脚本，`stdio` 传输而不是 `sse` 传输是更好的选择。
+
+</Tip>
+
+#### HTTP+SSE 传输的配置
+
+对于使用 HTTP+SSE 传输的远程服务器，配置包括服务器 URL：
+
+```json
+{
+  "servers": [
+    {
+      "name": "Remote MCP Server",
+      "transport": {
+        "type": "sse",
+        "url": "https://example.com/gradio_api/mcp/sse"
+      }
+    }
+  ]
+}
+```
+
+这种配置允许您的 UI 客户端使用 MCP 协议与 Gradio MCP 服务器通信，实现前端和 MCP 服务之间的无缝集成。
+
+## 配置 UI MCP 客户端
+
+在使用 Gradio MCP 服务器时，您可以配置 UI 客户端使用 MCP 协议连接到服务器。以下是设置方法：
+
+### 基本配置
+
+创建一个名为 `config.json` 的新文件，包含以下配置：
+
+```json
+{
+  "mcpServers": {
+    "mcp": {
+      "url": "http://localhost:7860/gradio_api/mcp/sse"
+    }
+  }
+}
+```
+
+这种配置允许您的 UI 客户端使用 MCP 协议与 Gradio MCP 服务器通信，实现前端和 MCP 服务之间的无缝集成。
+
+## 在 Cursor IDE 中配置 MCP 客户端
+
+Cursor 提供内置的 MCP 支持，允许您将部署的 MCP 服务器直接连接到您的开发环境。
+
+### 配置
+
+打开 Cursor 设置（`Ctrl + Shift + J` / `Cmd + Shift + J`）→ **MCP** 标签 → **添加新的全局 MCP 服务器**：
+
+**macOS：**
+```json
+{
+  "mcpServers": {
+    "sentiment-analysis": {
+      "command": "npx",
+      "args": [
+        "-y", 
+        "mcp-remote", 
+        "https://YOURUSENAME-mcp-sentiment.hf.space/gradio_api/mcp/sse", 
+        "--transport", 
+        "sse-only"
+      ]
+    }
+  }
+}
+```
+
+**Windows：**
+```json
+{
+  "mcpServers": {
+    "sentiment-analysis": {
+      "command": "cmd",
+      "args": [
+        "/c", 
+        "npx", 
+        "-y", 
+        "mcp-remote", 
+        "https://YOURUSENAME-mcp-sentiment.hf.space/gradio_api/mcp/sse", 
+        "--transport", 
+        "sse-only"
+      ]
+    }
+  }
+}
+```
+
+### 为什么我们使用 mcp-remote
+
+大多数 MCP 客户端，包括 Cursor，目前只支持通过 stdio 传输的本地服务器，还不支持带有 OAuth 认证的远程服务器。`mcp-remote` 工具作为桥接解决方案：
+
+- 在您的机器上本地运行
+- 将请求从 Cursor 转发到远程 MCP 服务器
+- 使用熟悉的配置文件格式
+
+配置完成后，您可以要求 Cursor 使用您的情感分析工具来执行诸如分析代码注释、用户反馈或拉取请求描述等任务。

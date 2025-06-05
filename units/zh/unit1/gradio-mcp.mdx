@@ -1,0 +1,96 @@
+# Gradio 与 MCP
+
+我们现在已经探索了 MCP 协议的核心概念以及如何实现 MCP 服务器和客户端。在本节中，我们将通过使用 Gradio 创建 MCP 服务器来让事情变得稍微简单一些！
+
+<Tip>
+
+Gradio 是一个流行的 Python 库，用于快速为机器学习模型创建可定制的 Web 界面。
+
+</Tip>
+
+## Gradio 简介
+
+Gradio 允许开发者仅用几行 Python 代码就能为他们的模型创建 UI。它特别适用于：
+
+- 创建演示和原型
+- 与非技术用户分享模型
+- 测试和调试模型行为
+
+随着 MCP 支持的加入，Gradio 现在提供了一种通过标准化 MCP 协议公开 AI 模型能力的直接方式。
+
+将 Gradio 与 MCP 结合使用，您可以用最少的代码创建人性化界面和 AI 可访问的工具。但最重要的是，Gradio 已经被 AI 社区广泛使用，因此您可以使用它与他人分享您的 MCP 服务器。
+
+## 先决条件
+
+要使用支持 MCP 的 Gradio，您需要安装带有 MCP 扩展的 Gradio：
+
+```bash
+pip install "gradio[mcp]"
+```
+
+您还需要一个支持使用 MCP 协议进行工具调用的 LLM 应用程序，例如 Cursor（称为"MCP 主机"）。
+
+## 使用 Gradio 创建 MCP 服务器
+
+让我们通过一个使用 Gradio 创建 MCP 服务器的基本示例：
+
+```python
+import gradio as gr
+
+def letter_counter(word: str, letter: str) -> int:
+    """
+    计算单词或文本中字母出现的次数。
+
+    Args:
+        word (str): 要搜索的输入文本
+        letter (str): 要搜索的字母
+
+    Returns:
+        int: 字母在文本中出现的次数
+    """
+    word = word.lower()
+    letter = letter.lower()
+    count = word.count(letter)
+    return count
+
+# 创建标准的 Gradio 界面
+demo = gr.Interface(
+    fn=letter_counter,
+    inputs=["textbox", "textbox"],
+    outputs="number",
+    title="字母计数器",
+    description="输入文本和字母，计算字母在文本中出现的次数。"
+)
+
+# 同时启动 Gradio Web 界面和 MCP 服务器
+if __name__ == "__main__":
+    demo.launch(mcp_server=True)
+```
+
+通过这种设置，您的字母计数器函数现在可以通过以下方式访问：
+
+1. 用于直接人机交互的传统 Gradio Web 界面
+2. 可以连接到兼容客户端的 MCP 服务器
+
+MCP 服务器将在以下地址可访问：
+```
+http://your-server:port/gradio_api/mcp/sse
+```
+
+应用程序本身仍然可以访问，它看起来像这样：
+
+![Gradio MCP 服务器](https://huggingface.co/datasets/mcp-course/images/resolve/main/unit1/7.png)
+
+## 幕后工作原理
+
+当您在 `launch()` 中设置 `mcp_server=True` 时，会发生几件事：
+
+1. Gradio 函数自动转换为 MCP 工具
+2. 输入组件映射到工具参数模式
+3. 输出组件确定响应格式
+4. Gradio 服务器现在也监听 MCP 协议消息
+5. 为客户端-服务器通信设置基于 HTTP+SSE 的 JSON-RPC
+
+## Gradio <> MCP 集成的关键特性
+
+1. **工具转换**：Gradio 应用中的每个 API 端点都会自动转换为具有相应名称、描述和输入模式的 MCP 工具。要查看工具和模式，请访问 `http://your-server:port/gradio_api/mcp/schema` 或转到 Gradio 应用页脚中的"查看 API"链接，然后点击
